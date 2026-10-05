@@ -35,7 +35,7 @@ export default function IntegrationsScreen() {
       const proxyUrl = 'https://businessxapp.vercel.app/api/auth-proxy';
       const FB_APP_ID = process.env.EXPO_PUBLIC_FACEBOOK_APP_ID || '1575530317643123';
       
-      const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${proxyUrl}&response_type=token&scope=pages_show_list,pages_messaging,pages_read_engagement&state=${encodeURIComponent(returnUrl)}`;
+      const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(proxyUrl)}&response_type=token&scope=pages_show_list,pages_messaging,pages_read_engagement&state=${encodeURIComponent(returnUrl)}`;
       
       if (Platform.OS === 'web') {
         window.location.href = authUrl;
