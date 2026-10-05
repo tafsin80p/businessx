@@ -5,9 +5,10 @@ import { useRouter } from 'expo-router';
 import { THEME } from '../constants/theme';
 import { ArrowLeft, CheckCircle2 } from 'lucide-react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { LoginManager, AccessToken } from 'react-native-fbsdk-next';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 
 export default function IntegrationsScreen() {
   const router = useRouter();
@@ -17,13 +18,23 @@ export default function IntegrationsScreen() {
 
   const handleConnectFacebook = async () => {
     try {
-      const result = await LoginManager.logInWithPermissions(['pages_show_list', 'pages_messaging', 'pages_read_engagement']);
-      if (result.isCancelled) return;
+      const returnUrl = Linking.createURL('integrations');
+      const proxyUrl = 'https://businessxapp.vercel.app/api/auth-proxy';
+      const FB_APP_ID = process.env.EXPO_PUBLIC_FACEBOOK_APP_ID || '1575530317643123';
+      
+      const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${proxyUrl}&response_type=token&scope=pages_show_list,pages_messaging,pages_read_engagement&state=${encodeURIComponent(returnUrl)}`;
+      
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, returnUrl);
 
-      const data = await AccessToken.getCurrentAccessToken();
-      if (!data) throw new Error('Failed to get access token');
-
-      fetchFacebookPages(data.accessToken.toString());
+      if (result.type === 'success' && result.url) {
+        let token = null;
+        if (result.url.includes('access_token=')) {
+          token = result.url.split('access_token=')[1].split('&')[0];
+        }
+        
+        if (!token) throw new Error('Failed to get access token');
+        fetchFacebookPages(token);
+      }
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to authenticate with Facebook');
     }
