@@ -7,20 +7,52 @@ import { THEME } from '../constants/theme';
 import { Mail, Lock } from 'lucide-react-native';
 import Animated, { FadeInUp, FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuthStore } from '../store/authStore';
+import Constants from 'expo-constants';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const { login } = useAuthStore();
+  const [email, setEmail] = useState('hello@businessx.com');
+  const [password, setPassword] = useState('password123');
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
+    if (!email || !password) {
+      setErrorMsg('Please enter both email and password');
+      return;
+    }
+
     setLoading(true);
-    // Mock login
-    setTimeout(() => {
+    setErrorMsg('');
+
+    try {
+      // Get computer's IP address dynamically for physical devices
+      const hostUri = Constants?.expoConfig?.hostUri;
+      const host = hostUri ? hostUri.split(':')[0] : '192.168.0.108';
+      const apiUrl = `http://${host}:8081/api/auth/login`;
+
+      const res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setErrorMsg(data.error || 'Login failed');
+      } else {
+        await login(data.user, data.token);
+        router.replace('/(tabs)');
+      }
+    } catch (err) {
+      console.error(err);
+      setErrorMsg('Network error. Make sure your server is running.');
+    } finally {
       setLoading(false);
-      router.replace('/(tabs)');
-    }, 1000);
+    }
   };
 
   return (
@@ -56,6 +88,8 @@ export default function LoginScreen() {
           />
           
           <Text style={styles.forgotPassword}>Forgot password?</Text>
+
+          {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
 
           <Button
             title="Log In"
@@ -145,7 +179,13 @@ const styles = StyleSheet.create({
     color: THEME.colors.primary,
     textAlign: 'right',
     marginTop: -THEME.spacing.sm,
-    marginBottom: THEME.spacing.lg,
+    marginBottom: THEME.spacing.md,
+  },
+  errorText: {
+    ...THEME.typography.bodySm,
+    color: THEME.colors.error || '#ef4444',
+    textAlign: 'center',
+    marginBottom: THEME.spacing.md,
   },
   loginButton: {
     marginTop: THEME.spacing.md,
