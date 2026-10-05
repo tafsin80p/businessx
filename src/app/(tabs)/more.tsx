@@ -2,11 +2,14 @@ import React from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { THEME } from '../../constants/theme';
-import { Users, Truck, Zap, BarChart2, Users as TeamIcon, Settings, Bell, Shield, Store } from 'lucide-react-native';
+import { Users, Truck, Zap, BarChart2, Users as TeamIcon, Settings, Bell, Shield, Store, Link as LinkIcon } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Card } from '../../components/ui/Card';
+import { useRouter } from 'expo-router';
 
 export default function MoreScreen() {
+  const router = useRouter();
+
   const MENU_ITEMS = [
     { title: 'Customers', icon: <Users size={24} color={THEME.colors.primary} /> },
     { title: 'Courier', icon: <Truck size={24} color={THEME.colors.primary} /> },
@@ -14,7 +17,7 @@ export default function MoreScreen() {
     { title: 'Reports', icon: <BarChart2 size={24} color={THEME.colors.primary} /> },
     { title: 'Team', icon: <TeamIcon size={24} color={THEME.colors.primary} /> },
     { title: 'Store', icon: <Store size={24} color={THEME.colors.primary} /> },
-    { title: 'Notifications', icon: <Bell size={24} color={THEME.colors.primary} /> },
+    { title: 'Integrations', icon: <LinkIcon size={24} color={THEME.colors.primary} />, route: '/integrations' },
     { title: 'Settings', icon: <Settings size={24} color={THEME.colors.primary} /> },
   ];
 
@@ -47,7 +50,10 @@ export default function MoreScreen() {
               entering={FadeInDown.delay(300 + index * 50)} 
               style={styles.gridItemWrapper}
             >
-              <TouchableOpacity style={styles.gridItem}>
+              <TouchableOpacity 
+                style={styles.gridItem}
+                onPress={() => item.route && router.push(item.route as any)}
+              >
                 <Card padding="lg" style={styles.menuCard}>
                   <View style={styles.iconContainer}>{item.icon}</View>
                   <Text style={styles.menuTitle}>{item.title}</Text>

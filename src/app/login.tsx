@@ -1,136 +1,86 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, Text, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, Platform, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
 import { THEME } from '../constants/theme';
-import { Mail, Lock } from 'lucide-react-native';
+import { FontAwesome5 } from '@expo/vector-icons';
 import Animated, { FadeInUp, FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
-import Constants from 'expo-constants';
+import * as WebBrowser from 'expo-web-browser';
+import * as Facebook from 'expo-auth-session/providers/facebook';
+
+WebBrowser.maybeCompleteAuthSession();
+
+const FB_APP_ID = process.env.EXPO_PUBLIC_FACEBOOK_APP_ID || 'YOUR_FACEBOOK_APP_ID';
 
 export default function LoginScreen() {
   const router = useRouter();
   const { login } = useAuthStore();
-  const [email, setEmail] = useState('hello@businessx.com');
-  const [password, setPassword] = useState('password123');
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      setErrorMsg('Please enter both email and password');
-      return;
+  const [request, response, promptAsync] = Facebook.useAuthRequest({
+    clientId: FB_APP_ID,
+    scopes: ['public_profile', 'email'],
+  });
+
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const { access_token } = response.params;
+      handleFacebookSuccess(access_token);
     }
+  }, [response]);
 
+  const handleFacebookSuccess = async (token: string) => {
     setLoading(true);
-    setErrorMsg('');
-
     try {
-      // Get computer's IP address dynamically for physical devices
-      const hostUri = Constants?.expoConfig?.hostUri;
-      const host = hostUri ? hostUri.split(':')[0] : '192.168.0.108';
-      const apiUrl = `http://${host}:8081/api/auth/login`;
-
-      const res = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-
+      // Fetch user profile from Facebook
+      const res = await fetch(`https://graph.facebook.com/me?fields=id,name,email&access_token=${token}`);
       const data = await res.json();
-
-      if (!res.ok) {
-        setErrorMsg(data.error || 'Login failed');
-      } else {
-        await login(data.user, data.token);
-        router.replace('/(tabs)');
-      }
+      
+      // Log them in using our authStore
+      await login(
+        { id: data.id, name: data.name || 'Facebook User', email: data.email || `${data.id}@facebook.com` },
+        token // Using FB token as session token for now
+      );
+      
+      router.replace('/(tabs)');
     } catch (err) {
-      console.error(err);
-      setErrorMsg('Network error. Make sure your server is running.');
+      Alert.alert('Error', 'Failed to login with Facebook');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+    <SafeAreaView style={styles.container}>
+      <View style={styles.content}>
         <Animated.View entering={FadeInUp.delay(200).springify()} style={styles.header}>
           <View style={styles.logoPlaceholder}>
             <Text style={styles.logoText}>F</Text>
           </View>
-          <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>Login to your account</Text>
+          <Text style={styles.title}>FlowCommerce</Text>
+          <Text style={styles.subtitle}>Log in to manage your business</Text>
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.form}>
-          <Input
-            placeholder="Email or Phone"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            leftIcon={<Mail size={20} color={THEME.colors.textMuted} />}
-          />
-          
-          <Input
-            placeholder="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            leftIcon={<Lock size={20} color={THEME.colors.textMuted} />}
-          />
-          
-          <Text style={styles.forgotPassword}>Forgot password?</Text>
-
-          {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
-
+        <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.actionContainer}>
           <Button
-            title="Log In"
+            title="Continue with Facebook"
             size="lg"
             fullWidth
-            onPress={handleLogin}
+            onPress={() => promptAsync()}
             loading={loading}
-            style={styles.loginButton}
+            disabled={!request}
+            style={styles.fbButton}
+            icon={<FontAwesome5 name="facebook" size={20} color="#FFF" style={{ marginRight: 10 }} />}
           />
+          
+          <Text style={styles.termsText}>
+            By continuing, you agree to our Terms of Service and Privacy Policy.
+          </Text>
         </Animated.View>
-
-        <Animated.View entering={FadeInDown.delay(400).springify()} style={styles.socialContainer}>
-          <View style={styles.dividerContainer}>
-            <View style={styles.divider} />
-            <Text style={styles.dividerText}>or continue with</Text>
-            <View style={styles.divider} />
-          </View>
-
-          <View style={styles.socialButtons}>
-            <Button
-              title="Google"
-              variant="outline"
-              fullWidth
-              style={styles.socialButton}
-            />
-            <View style={{ width: THEME.spacing.md }} />
-            <Button
-              title="Facebook"
-              variant="outline"
-              fullWidth
-              style={styles.socialButton}
-            />
-          </View>
-        </Animated.View>
-
-        <Animated.View entering={FadeInDown.delay(500).springify()} style={styles.footer}>
-          <Text style={styles.footerText}>Don't have an account? </Text>
-          <Text style={styles.signupText}>Sign Up</Text>
-        </Animated.View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </View>
+    </SafeAreaView>
   );
 }
 
@@ -139,18 +89,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: THEME.colors.background,
   },
-  scrollContent: {
-    flexGrow: 1,
-    padding: THEME.spacing.lg,
-    paddingTop: THEME.spacing.xxl * 2,
+  content: {
+    flex: 1,
+    padding: THEME.spacing.xl,
+    justifyContent: 'center',
   },
   header: {
     alignItems: 'center',
-    marginBottom: THEME.spacing.xl * 1.5,
+    marginBottom: THEME.spacing.xxl * 1.5,
   },
   logoPlaceholder: {
-    width: 60,
-    height: 60,
+    width: 80,
+    height: 80,
     borderRadius: THEME.radius.lg,
     backgroundColor: THEME.colors.primary,
     alignItems: 'center',
@@ -158,74 +108,31 @@ const styles = StyleSheet.create({
     marginBottom: THEME.spacing.lg,
   },
   logoText: {
-    fontSize: 32,
+    fontSize: 40,
     fontWeight: 'bold',
     color: '#FFF',
     fontStyle: 'italic',
   },
   title: {
-    ...THEME.typography.h2,
-    marginBottom: THEME.spacing.xs,
+    ...THEME.typography.h1,
+    marginBottom: THEME.spacing.sm,
   },
   subtitle: {
     ...THEME.typography.body,
     color: THEME.colors.textSecondary,
   },
-  form: {
-    marginBottom: THEME.spacing.xl,
-  },
-  forgotPassword: {
-    ...THEME.typography.bodySm,
-    color: THEME.colors.primary,
-    textAlign: 'right',
-    marginTop: -THEME.spacing.sm,
-    marginBottom: THEME.spacing.md,
-  },
-  errorText: {
-    ...THEME.typography.bodySm,
-    color: THEME.colors.error || '#ef4444',
-    textAlign: 'center',
-    marginBottom: THEME.spacing.md,
-  },
-  loginButton: {
-    marginTop: THEME.spacing.md,
-  },
-  socialContainer: {
-    marginBottom: THEME.spacing.xl,
-  },
-  dividerContainer: {
-    flexDirection: 'row',
+  actionContainer: {
     alignItems: 'center',
+  },
+  fbButton: {
+    backgroundColor: '#1877F2',
     marginBottom: THEME.spacing.lg,
   },
-  divider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: THEME.colors.border,
-  },
-  dividerText: {
+  termsText: {
     ...THEME.typography.caption,
-    paddingHorizontal: THEME.spacing.md,
-  },
-  socialButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  socialButton: {
-    flex: 1,
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 'auto',
-    paddingBottom: THEME.spacing.xl,
-  },
-  footerText: {
-    ...THEME.typography.bodySm,
-  },
-  signupText: {
-    ...THEME.typography.bodySm,
-    color: THEME.colors.primary,
-    fontWeight: '600',
+    textAlign: 'center',
+    color: THEME.colors.textMuted,
+    paddingHorizontal: THEME.spacing.lg,
+    lineHeight: 18,
   },
 });

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FlashList } from '@shopify/flash-list';
 import { THEME } from '../../constants/theme';
@@ -7,21 +7,46 @@ import { Search, Edit, MoreVertical } from 'lucide-react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import Animated, { FadeIn, FadeInDown, SlideInRight } from 'react-native-reanimated';
 
-const MOCK_CHATS = [
-  { id: '1', name: 'Rafsan Ahmed', message: 'Hi, is the black t-shirt available...', time: '2m', unread: 2, platform: 'messenger', online: true },
-  { id: '2', name: 'Sadia Islam', message: 'Can I get a discount if I order 2?', time: '8m', unread: 0, platform: 'whatsapp', online: false },
-  { id: '3', name: 'Tanvir Hasan', message: 'Where is my order? #10253', time: '12m', unread: 1, platform: 'instagram', online: true },
-  { id: '4', name: 'Nusrat Jahan', message: 'Thank you! ❤️', time: '18m', unread: 0, platform: 'messenger', online: false },
-  { id: '5', name: 'Rifat Ahmed', message: 'Do you have this in XL?', time: '25m', unread: 0, platform: 'whatsapp', online: false },
-  { id: '6', name: 'Mahfuza Akter', message: 'I just placed an order. Can you confirm?', time: '32m', unread: 1, platform: 'instagram', online: true },
-  { id: '7', name: 'Kamrul Islam', message: 'Please cancel my order', time: '1h', unread: 0, platform: 'messenger', online: false },
-  { id: '8', name: 'Sumaiya', message: 'How long for delivery to Sylhet?', time: '2h', unread: 0, platform: 'whatsapp', online: false },
-];
-
 export default function InboxScreen() {
   const [activeTab, setActiveTab] = useState('All');
+  const [chats, setChats] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   
   const tabs = ['All', 'WhatsApp', 'Messenger', 'Instagram'];
+
+  const fetchChats = async () => {
+    try {
+      const res = await fetch('https://businessxapp.vercel.app/api/conversations');
+      const data = await res.json();
+      
+      const mappedChats = data.map((conv: any) => ({
+        id: conv._id,
+        name: conv.customerName || 'Unknown',
+        message: conv.lastMessage || 'Sent an attachment',
+        time: new Date(conv.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        unread: conv.unreadCount || 0,
+        platform: conv.platform,
+        online: false,
+      }));
+      
+      setChats(mappedChats);
+    } catch (err) {
+      console.error('Error fetching chats:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchChats();
+    // Simple polling to check for new messages every 5 seconds
+    const interval = setInterval(fetchChats, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const filteredChats = activeTab === 'All' 
+    ? chats 
+    : chats.filter(chat => chat.platform.toLowerCase() === activeTab.toLowerCase());
 
   return (
     <SafeAreaView style={styles.container}>
@@ -56,13 +81,23 @@ export default function InboxScreen() {
       </Animated.View>
 
       <Animated.View entering={FadeIn.delay(400)} style={styles.listContainer}>
-        <FlashList
-          data={MOCK_CHATS}
-          keyExtractor={(item) => item.id}
-          estimatedItemSize={76}
-          renderItem={({ item, index }) => (
-            <Animated.View entering={SlideInRight.delay(400 + index * 50)}>
-              <TouchableOpacity style={[styles.chatItem, item.unread > 0 && styles.chatItemUnread]}>
+        {loading && chats.length === 0 ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <ActivityIndicator size="large" color={THEME.colors.primary} />
+          </View>
+        ) : filteredChats.length === 0 ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', opacity: 0.5 }}>
+            <Text style={{ color: THEME.colors.text }}>No conversations yet.</Text>
+            <Text style={{ color: THEME.colors.textMuted, fontSize: 12, marginTop: 4 }}>Messages sent to your Pages will appear here.</Text>
+          </View>
+        ) : (
+          <FlashList
+            data={filteredChats}
+            keyExtractor={(item) => item.id}
+            estimatedItemSize={76}
+            renderItem={({ item, index }) => (
+              <Animated.View entering={SlideInRight.delay(400 + index * 50)}>
+                <TouchableOpacity style={[styles.chatItem, item.unread > 0 && styles.chatItemUnread]}>
                 <View style={styles.avatarContainer}>
                   <View style={[styles.avatar, item.unread > 0 && styles.avatarUnread]}>
                     <Text style={[styles.avatarText, item.unread > 0 && styles.avatarTextUnread]}>{item.name.charAt(0)}</Text>
@@ -93,6 +128,7 @@ export default function InboxScreen() {
             </Animated.View>
           )}
         />
+        )}
       </Animated.View>
 
       <TouchableOpacity style={styles.fab}>
