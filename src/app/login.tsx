@@ -53,7 +53,9 @@ export default function LoginScreen() {
       const returnUrl = Linking.createURL('login');
       const proxyUrl = 'https://businessxapp.vercel.app/api/auth-proxy';
       const FB_APP_ID = process.env.EXPO_PUBLIC_FACEBOOK_APP_ID || '1575530317643123';
-      const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(proxyUrl)}&response_type=token&scope=public_profile&state=${encodeURIComponent(returnUrl)}`;
+      
+      // Removed scope parameter completely to avoid "Unsupported permission" errors
+      const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(proxyUrl)}&response_type=token&state=${encodeURIComponent(returnUrl)}`;
       
       if (Platform.OS === 'web') {
         window.location.href = authUrl;
