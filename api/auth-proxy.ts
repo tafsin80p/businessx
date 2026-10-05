@@ -53,7 +53,7 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
           }
         } else {
           document.getElementById('error-msg').style.display = 'block';
-          document.getElementById('error-msg').innerText = "Error: Missing state parameter from Facebook.";
+          document.getElementById('error-msg').innerHTML = "<b>Error: Missing state parameter.</b><br/>URL: " + window.location.href + "<br/>Hash: " + hash + "<br/>Search: " + search;
         }
       </script>
     </body>
