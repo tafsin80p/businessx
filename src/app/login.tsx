@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, Platform, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Button } from '../components/ui/Button';
@@ -17,48 +17,63 @@ export default function LoginScreen() {
   const { login } = useAuthStore();
   const [loading, setLoading] = useState(false);
 
+  // For Web: Catch the token when the page reloads after proxy redirect
+  useEffect(() => {
+    if (Platform.OS === 'web' && window.location.href.includes('access_token=')) {
+      const url = window.location.href;
+      const token = url.split('access_token=')[1].split('&')[0];
+      if (token) {
+        processToken(token);
+      }
+    }
+  }, []);
+
+  const processToken = async (token: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`https://graph.facebook.com/me?fields=id,name,email&access_token=${token}`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
+      
+      await login(
+        { id: data.id, name: data.name || 'Facebook User', email: data.email || `${data.id}@facebook.com` },
+        token
+      );
+      router.replace('/(tabs)');
+    } catch (err: any) {
+      Alert.alert('Login Error', err.message || 'Failed to login with Facebook');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleFacebookLogin = async () => {
     setLoading(true);
     try {
-      // 1. Create deep link to return back to Expo Go
       const returnUrl = Linking.createURL('login');
-      
-      // 2. Vercel Proxy URL
       const proxyUrl = 'https://businessxapp.vercel.app/api/auth-proxy';
-      
-      // 3. Build Facebook Auth URL
       const FB_APP_ID = process.env.EXPO_PUBLIC_FACEBOOK_APP_ID || '1575530317643123';
       const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${proxyUrl}&response_type=token&scope=public_profile,email&state=${encodeURIComponent(returnUrl)}`;
       
-      // 4. Open the browser
+      if (Platform.OS === 'web') {
+        window.location.href = authUrl;
+        return; // Page will redirect
+      }
+
       const result = await WebBrowser.openAuthSessionAsync(authUrl, returnUrl);
       
       if (result.type === 'success' && result.url) {
-        // Parse token from returned URL
         let token = null;
         if (result.url.includes('access_token=')) {
           token = result.url.split('access_token=')[1].split('&')[0];
         }
-        
         if (!token) throw new Error('No access token returned');
-
-        // Fetch user profile
-        const res = await fetch(`https://graph.facebook.com/me?fields=id,name,email&access_token=${token}`);
-        const data = await res.json();
-        
-        if (data.error) throw new Error(data.error.message);
-        
-        await login(
-          { id: data.id, name: data.name || 'Facebook User', email: data.email || `${data.id}@facebook.com` },
-          token
-        );
-        
-        router.replace('/(tabs)');
+        processToken(token);
       } else {
         setLoading(false);
       }
     } catch (err: any) {
-      Alert.alert('Login Error', err.message || 'Failed to login with Facebook');
+      Alert.alert('Login Error', err.message || 'Failed to start Facebook login');
       setLoading(false);
     }
   };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { THEME } from '../constants/theme';
@@ -16,6 +16,19 @@ export default function IntegrationsScreen() {
   const [loadingPages, setLoadingPages] = useState(false);
   const [subscribing, setSubscribing] = useState<string | null>(null);
 
+  // For Web: Catch the token when the page reloads after proxy redirect
+  useEffect(() => {
+    if (Platform.OS === 'web' && window.location.href.includes('access_token=')) {
+      const url = window.location.href;
+      const token = url.split('access_token=')[1].split('&')[0];
+      if (token) {
+        fetchFacebookPages(token);
+        // Clean URL so it doesn't try to fetch again on refresh
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, []);
+
   const handleConnectFacebook = async () => {
     try {
       const returnUrl = Linking.createURL('integrations');
@@ -24,6 +37,11 @@ export default function IntegrationsScreen() {
       
       const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${proxyUrl}&response_type=token&scope=pages_show_list,pages_messaging,pages_read_engagement&state=${encodeURIComponent(returnUrl)}`;
       
+      if (Platform.OS === 'web') {
+        window.location.href = authUrl;
+        return;
+      }
+
       const result = await WebBrowser.openAuthSessionAsync(authUrl, returnUrl);
 
       if (result.type === 'success' && result.url) {
