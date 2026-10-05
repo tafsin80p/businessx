@@ -5,15 +5,9 @@ import { useRouter } from 'expo-router';
 import { THEME } from '../constants/theme';
 import { ArrowLeft, CheckCircle2 } from 'lucide-react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
-import * as WebBrowser from 'expo-web-browser';
-import * as Facebook from 'expo-auth-session/providers/facebook';
+import { LoginManager, AccessToken } from 'react-native-fbsdk-next';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
-
-WebBrowser.maybeCompleteAuthSession();
-
-// User needs to provide this in their .env
-const FB_APP_ID = process.env.EXPO_PUBLIC_FACEBOOK_APP_ID || 'YOUR_FACEBOOK_APP_ID';
 
 export default function IntegrationsScreen() {
   const router = useRouter();
@@ -21,17 +15,19 @@ export default function IntegrationsScreen() {
   const [loadingPages, setLoadingPages] = useState(false);
   const [subscribing, setSubscribing] = useState<string | null>(null);
 
-  const [request, response, promptAsync] = Facebook.useAuthRequest({
-    clientId: FB_APP_ID,
-    scopes: ['pages_show_list', 'pages_messaging', 'pages_read_engagement'],
-  });
+  const handleConnectFacebook = async () => {
+    try {
+      const result = await LoginManager.logInWithPermissions(['pages_show_list', 'pages_messaging', 'pages_read_engagement']);
+      if (result.isCancelled) return;
 
-  useEffect(() => {
-    if (response?.type === 'success') {
-      const { access_token } = response.params;
-      fetchFacebookPages(access_token);
+      const data = await AccessToken.getCurrentAccessToken();
+      if (!data) throw new Error('Failed to get access token');
+
+      fetchFacebookPages(data.accessToken.toString());
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to authenticate with Facebook');
     }
-  }, [response]);
+  };
 
   const fetchFacebookPages = async (userToken: string) => {
     setLoadingPages(true);
@@ -66,7 +62,6 @@ export default function IntegrationsScreen() {
       const data = await res.json();
       if (data.success) {
         Alert.alert('Success', `${page.name} is now connected! Messages will appear in your Inbox.`);
-        // Mark as connected locally
         setPages(pages.map(p => p.id === page.id ? { ...p, isConnected: true } : p));
       } else {
         Alert.alert('Connection Failed', data.error?.message || 'Unknown error');
@@ -103,14 +98,7 @@ export default function IntegrationsScreen() {
           {pages.length === 0 ? (
             <Button
               title="Connect with Facebook"
-              onPress={() => {
-                if (FB_APP_ID === 'YOUR_FACEBOOK_APP_ID') {
-                  Alert.alert('Setup Required', 'Please set EXPO_PUBLIC_FACEBOOK_APP_ID in your .env file first.');
-                } else {
-                  promptAsync();
-                }
-              }}
-              disabled={!request}
+              onPress={handleConnectFacebook}
               style={styles.connectBtn}
             />
           ) : (

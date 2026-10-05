@@ -1,14 +1,16 @@
 import React from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { THEME } from '../../constants/theme';
-import { Users, Truck, Zap, BarChart2, Users as TeamIcon, Settings, Bell, Shield, Store, Link as LinkIcon } from 'lucide-react-native';
+import { Users, Truck, Zap, BarChart2, Users as TeamIcon, Settings, Bell, Shield, Store, Link as LinkIcon, LogOut } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Card } from '../../components/ui/Card';
 import { useRouter } from 'expo-router';
+import { useAuthStore } from '../../store/authStore';
 
 export default function MoreScreen() {
   const router = useRouter();
+  const { logout, user } = useAuthStore();
 
   const MENU_ITEMS = [
     { title: 'Customers', icon: <Users size={24} color={THEME.colors.primary} /> },
@@ -21,6 +23,20 @@ export default function MoreScreen() {
     { title: 'Settings', icon: <Settings size={24} color={THEME.colors.primary} /> },
   ];
 
+  const handleLogout = () => {
+    Alert.alert('Logout', 'Are you sure you want to log out?', [
+      { text: 'Cancel', style: 'cancel' },
+      { 
+        text: 'Logout', 
+        style: 'destructive',
+        onPress: async () => {
+          await logout();
+          router.replace('/login');
+        }
+      }
+    ]);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <Animated.View entering={FadeInDown.delay(100)} style={styles.header}>
@@ -31,11 +47,11 @@ export default function MoreScreen() {
         <Animated.View entering={FadeInDown.delay(200)} style={styles.profileSection}>
           <Card padding="md" style={styles.profileCard}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>M</Text>
+              <Text style={styles.avatarText}>{user?.name?.charAt(0) || 'U'}</Text>
             </View>
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>Mohim</Text>
-              <Text style={styles.profileRole}>Business Owner</Text>
+              <Text style={styles.profileName}>{user?.name || 'User'}</Text>
+              <Text style={styles.profileRole}>{user?.email || 'user@example.com'}</Text>
             </View>
             <TouchableOpacity style={styles.profileAction}>
               <Text style={styles.profileActionText}>Edit</Text>
@@ -62,6 +78,13 @@ export default function MoreScreen() {
             </Animated.View>
           ))}
         </View>
+
+        <Animated.View entering={FadeInDown.delay(700)}>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <LogOut size={20} color={THEME.colors.error} />
+            <Text style={styles.logoutText}>Log Out</Text>
+          </TouchableOpacity>
+        </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(800)} style={styles.footer}>
           <View style={styles.logoPlaceholder}>
@@ -152,6 +175,22 @@ const styles = StyleSheet.create({
   menuTitle: {
     ...THEME.typography.caption,
     textAlign: 'center',
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: THEME.colors.error + '15',
+    paddingVertical: THEME.spacing.md,
+    borderRadius: THEME.radius.md,
+    marginTop: THEME.spacing.xl,
+    marginHorizontal: THEME.spacing.sm,
+  },
+  logoutText: {
+    ...THEME.typography.body,
+    color: THEME.colors.error,
+    fontWeight: '600',
+    marginLeft: THEME.spacing.sm,
   },
   footer: {
     alignItems: 'center',

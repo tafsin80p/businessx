@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, View, Text, Platform, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Button } from '../components/ui/Button';
@@ -7,46 +7,53 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import Animated, { FadeInUp, FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
-import * as WebBrowser from 'expo-web-browser';
-import * as Facebook from 'expo-auth-session/providers/facebook';
-
-WebBrowser.maybeCompleteAuthSession();
-
-const FB_APP_ID = process.env.EXPO_PUBLIC_FACEBOOK_APP_ID || 'YOUR_FACEBOOK_APP_ID';
+import { LoginManager, AccessToken, Profile } from 'react-native-fbsdk-next';
 
 export default function LoginScreen() {
   const router = useRouter();
   const { login } = useAuthStore();
   const [loading, setLoading] = useState(false);
 
-  const [request, response, promptAsync] = Facebook.useAuthRequest({
-    clientId: FB_APP_ID,
-    scopes: ['public_profile', 'email'],
-  });
-
-  useEffect(() => {
-    if (response?.type === 'success') {
-      const { access_token } = response.params;
-      handleFacebookSuccess(access_token);
-    }
-  }, [response]);
-
-  const handleFacebookSuccess = async (token: string) => {
+  const handleFacebookLogin = async () => {
     setLoading(true);
     try {
-      // Fetch user profile from Facebook
-      const res = await fetch(`https://graph.facebook.com/me?fields=id,name,email&access_token=${token}`);
-      const data = await res.json();
+      const result = await LoginManager.logInWithPermissions(['public_profile', 'email']);
       
-      // Log them in using our authStore
+      if (result.isCancelled) {
+        setLoading(false);
+        return;
+      }
+
+      const data = await AccessToken.getCurrentAccessToken();
+      if (!data) {
+        throw new Error('Failed to get access token');
+      }
+
+      // Fetch profile directly (or we can fallback to Graph API)
+      const profile = await Profile.getCurrentProfile();
+      let name = profile?.name;
+      let email = profile?.email;
+
+      // Sometimes Profile doesn't return email, so we do Graph API just in case
+      if (!name) {
+        const res = await fetch(`https://graph.facebook.com/me?fields=id,name,email&access_token=${data.accessToken}`);
+        const graphData = await res.json();
+        name = graphData.name;
+        email = graphData.email;
+      }
+      
       await login(
-        { id: data.id, name: data.name || 'Facebook User', email: data.email || `${data.id}@facebook.com` },
-        token // Using FB token as session token for now
+        { 
+          id: profile?.userID || data.userID, 
+          name: name || 'Facebook User', 
+          email: email || `${data.userID}@facebook.com` 
+        },
+        data.accessToken.toString()
       );
       
       router.replace('/(tabs)');
-    } catch (err) {
-      Alert.alert('Error', 'Failed to login with Facebook');
+    } catch (err: any) {
+      Alert.alert('Login Error', err.message || 'Failed to login with Facebook');
     } finally {
       setLoading(false);
     }
@@ -68,9 +75,8 @@ export default function LoginScreen() {
             title="Continue with Facebook"
             size="lg"
             fullWidth
-            onPress={() => promptAsync()}
+            onPress={handleFacebookLogin}
             loading={loading}
-            disabled={!request}
             style={styles.fbButton}
             icon={<FontAwesome5 name="facebook" size={20} color="#FFF" style={{ marginRight: 10 }} />}
           />
